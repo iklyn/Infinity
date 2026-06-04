@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Infinity",
+      "program": "${workspaceFolder}/build/Build/Products/Debug/Infinity.app/Contents/MacOS/Infinity",
+      "preLaunchTask": "Build — Debug",
+      "args": [],
+      "env": {},
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
