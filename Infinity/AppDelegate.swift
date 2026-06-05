@@ -18,6 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(alarmStarted),
             name: .infinityAlarmStarted, object: nil)
+        // Close the popover whenever the app loses focus (click any other app / the desktop).
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(appResignedActive),
+            name: NSApplication.didResignActiveNotification, object: nil)
+    }
+
+    @objc private func appResignedActive() {
+        if popover?.isShown == true { popover?.performClose(nil) }
     }
 
     func applicationWillTerminate(_ note: Notification) { store.save() }

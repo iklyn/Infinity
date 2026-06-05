@@ -72,6 +72,7 @@ struct AddTimerView: View {
         }
         .background(Theme.bg)
         .frame(width: 360)
+        .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { nameFocused = true }
         }
@@ -84,7 +85,7 @@ struct AddTimerView: View {
             Text(isEditing ? "Edit" : "New Timer")
                 .font(.onePlus(14)).foregroundColor(.white)
             HStack {
-                Button("Cancel", action: onDismiss)
+                Button("Cancel") { dismissForm() }
                     .font(.onePlus(13)).foregroundColor(.white.opacity(0.4))
                     .buttonStyle(.plain)
                 Spacer()
@@ -166,11 +167,16 @@ struct AddTimerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
-            RadialGradient(colors: [Theme.accentSolid.opacity(0.18), .clear],
-                           center: .center, startRadius: 2, endRadius: 165)
-                .blur(radius: 26)
+            // Soft glow — a multi-stop radial gradient (no blur, so it stays
+            // clean and contained through page transitions).
+            RadialGradient(
+                colors: [Theme.accentSolid.opacity(0.20),
+                         Theme.accentSolid.opacity(0.05),
+                         .clear],
+                center: .center, startRadius: 0, endRadius: 150)
                 .allowsHitTesting(false)
         )
+        .clipped()
     }
 
     private var colonDots: some View {
@@ -214,12 +220,6 @@ struct AddTimerView: View {
                     Button(opt.rawValue) { repeat_ = opt }
                 }
             }
-            Divider().background(Theme.divider)
-            menuRow("Show as", displayUnit.rawValue) {
-                ForEach(DisplayUnit.allCases) { unit in
-                    Button(unit.rawValue) { displayUnit = unit }
-                }
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -254,35 +254,25 @@ struct AddTimerView: View {
         .padding(.horizontal, 20).padding(.vertical, 15)
     }
 
-    /// Clean typable date + time fields — type any year (1900–2099) directly.
+    /// Compact typable date (+ time) tag — hugs its fields, type any year directly.
     private func pickerPopover(_ date: Binding<Date>, time: Bool) -> some View {
-        VStack(spacing: 14) {
-            HStack {
-                Text("Date").font(.onePlus(13)).foregroundColor(.white.opacity(0.55))
-                Spacer()
-                DatePicker("", selection: date, in: infinityMinDate...infinityMaxDate,
-                           displayedComponents: [.date])
+        VStack(alignment: .trailing, spacing: 8) {
+            DatePicker("", selection: date, in: infinityMinDate...infinityMaxDate,
+                       displayedComponents: [.date])
+                .datePickerStyle(.field)
+                .labelsHidden()
+                .fixedSize()
+                .environment(\.locale, Locale(identifier: "en_GB"))     // dd/MM/yyyy, zero-padded
+
+            if time {
+                DatePicker("", selection: date, displayedComponents: [.hourAndMinute])
                     .datePickerStyle(.field)
                     .labelsHidden()
                     .fixedSize()
-                    .environment(\.locale, Locale(identifier: "en_GB"))   // dd/MM/yyyy, zero-padded
-            }
-
-            if time {
-                Divider().background(Theme.divider)
-                HStack {
-                    Text("Time").font(.onePlus(13)).foregroundColor(.white.opacity(0.55))
-                    Spacer()
-                    DatePicker("", selection: date, displayedComponents: [.hourAndMinute])
-                        .datePickerStyle(.field)
-                        .labelsHidden()
-                        .fixedSize()
-                        .environment(\.locale, Locale(identifier: "en_IN"))   // 12-hour am/pm
-                }
+                    .environment(\.locale, Locale(identifier: "en_IN"))  // 12-hour am/pm
             }
         }
-        .frame(width: 240)
-        .padding(16)
+        .padding(.horizontal, 16).padding(.vertical, 12)
         .background(Theme.bgRaised)
         .colorScheme(.dark)
     }
@@ -344,7 +334,16 @@ struct AddTimerView: View {
         if !isEditing { item.createdAt = Date() }
 
         isEditing ? store.update(item) : store.add(item)
-        onDismiss()
+        dismissForm()
+    }
+
+    /// Close any open date/emoji picker first, then leave — so the picker
+    /// teardown and the screen transition don't resize the window at once.
+    private func dismissForm() {
+        showStart = false
+        showEnd   = false
+        showEmoji = false
+        DispatchQueue.main.async { onDismiss() }
     }
 }
 

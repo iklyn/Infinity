@@ -50,6 +50,7 @@ struct TimerItem: Identifiable, Codable, Equatable {
     var repeatOption = RepeatOption.never
     var displayUnit  = DisplayUnit.auto
     var isCompleted  = false
+    var completedAt: Date? = nil          // when it rang — used to auto-clear after a day
     var createdAt    = Date()
 
     /// True if this was created counting *down* (a future moment) rather than

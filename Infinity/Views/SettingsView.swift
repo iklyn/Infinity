@@ -49,6 +49,8 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
+
+            Spacer(minLength: 0)
             Divider().background(Theme.divider)
 
             Button { NSApp.terminate(nil) } label: {
@@ -59,6 +61,7 @@ struct SettingsView: View {
         }
         .background(Theme.bg)
         .frame(width: 360)
+        .frame(maxHeight: .infinity, alignment: .top)
         .onAppear { launchAtLogin = SMAppService.mainApp.status == .enabled }
     }
 

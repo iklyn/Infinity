@@ -30,6 +30,18 @@ final class TimerStore: ObservableObject {
     func add(_ item: TimerItem)    { timers.append(item); save() }
     func delete(_ item: TimerItem) { timers.removeAll { $0.id == item.id }; save() }
 
+    /// Run a finished timer again for the same duration, starting now.
+    func restart(_ item: TimerItem) {
+        guard let i = timers.firstIndex(where: { $0.id == item.id }) else { return }
+        let duration = max(timers[i].targetDate.timeIntervalSince(timers[i].createdAt), 1)
+        let now = Date()
+        timers[i].createdAt   = now
+        timers[i].targetDate  = now.addingTimeInterval(duration)
+        timers[i].isCompleted = false
+        timers[i].completedAt = nil
+        save()
+    }
+
     func update(_ item: TimerItem) {
         guard let i = timers.firstIndex(where: { $0.id == item.id }) else { return }
         timers[i] = item; save()
@@ -50,6 +62,10 @@ final class TimerStore: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([TimerItem].self, from: data) {
             timers = decoded
+            // Give any already-completed timer a fresh clearing window.
+            for i in timers.indices where timers[i].isCompleted && timers[i].completedAt == nil {
+                timers[i].completedAt = Date()
+            }
         } else {
             timers = TimerItem.samples
         }
@@ -65,22 +81,44 @@ final class TimerStore: ObservableObject {
 
     private func tick() {
         objectWillChange.send()      // refresh the live values every second
-        advanceRepeats()
-        fireCompletions()
+        processDue()
+        purgeOldCompleted()
     }
 
-    /// Move passed recurring countdowns to their next occurrence.
-    private func advanceRepeats() {
+    /// Completed timers vanish a day after they rang.
+    private func purgeOldCompleted() {
+        let cutoff = Date().addingTimeInterval(-86_400)   // 24 hours ago
+        let before = timers.count
+        timers.removeAll { $0.isCompleted && ($0.completedAt ?? Date()) < cutoff }
+        if timers.count != before { save() }
+    }
+
+    /// When a countdown reaches its moment: ring it.
+    /// One-shot → mark done. Repeating → roll forward so it rings again next cycle.
+    private func processDue() {
         let now = Date()
         var changed = false
+        var ring = false
         for i in timers.indices where
             timers[i].kind != .progress &&
-            timers[i].repeatOption != .never &&
             timers[i].isCountingDown &&
-            timers[i].targetDate < now {
-            advance(&timers[i].targetDate, by: timers[i].repeatOption, until: now)
-            timers[i].isCompleted = false
+            timers[i].targetDate <= now {
+
+            if timers[i].repeatOption == .never {
+                guard !timers[i].isCompleted else { continue }
+                timers[i].isCompleted = true
+                timers[i].completedAt = now
+                ring = true
+            } else {
+                advance(&timers[i].targetDate, by: timers[i].repeatOption, until: now)
+                timers[i].isCompleted = false
+                ring = true
+            }
             changed = true
+        }
+        if ring {
+            SoundManager.shared.playAlarm()
+            isAlarming = true
         }
         if changed { save() }
     }
@@ -94,27 +132,9 @@ final class TimerStore: ObservableObject {
         case .yearly:  comps.year = 1
         case .never:   return
         }
-        while date < now {
+        while date <= now {
             guard let next = Calendar.current.date(byAdding: comps, to: date) else { break }
             date = next
         }
-    }
-
-    /// Ring the alarm when a one-shot countdown reaches zero.
-    private func fireCompletions() {
-        let now = Date()
-        var changed = false
-        for i in timers.indices where
-            timers[i].kind != .progress &&
-            timers[i].repeatOption == .never &&
-            timers[i].isCountingDown &&
-            timers[i].targetDate <= now &&
-            !timers[i].isCompleted {
-            timers[i].isCompleted = true
-            changed = true
-            SoundManager.shared.playAlarm()
-            isAlarming = true
-        }
-        if changed { save() }
     }
 }

@@ -8,11 +8,9 @@ struct TimerRowView: View {
     @State private var hovered    = false
     @State private var renaming   = false
     @State private var draft      = ""
-    @State private var showAlt    = false
     @FocusState private var nameFocused: Bool
 
     private var d: TimeDisplay { TimeCalculator.display(for: item) }
-    private var alt: (value: String, unit: String)? { TimeCalculator.altDisplay(for: item) }
 
     var body: some View {
         HStack(spacing: 13) {
@@ -89,41 +87,28 @@ struct TimerRowView: View {
                     .foregroundStyle(Theme.accentGradient)
             }
         } else if item.isCompleted {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 24)).foregroundColor(Theme.accentSolid)
-        } else {
-            HStack(alignment: .center, spacing: 9) {
-                if let alt {
-                    Button { withAnimation(.easeInOut(duration: 0.18)) { showAlt.toggle() } } label: {
-                        Text(showAlt ? compactPrimary() : alt.value + alt.unit)
-                            .font(.onePlus(11, .light))
-                            .foregroundColor(.white.opacity(0.2)).monospacedDigit()
-                    }
-                    .buttonStyle(.plain)
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                    store.restart(item)
                 }
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(showAlt && alt != nil ? alt!.value : d.primary)
-                        .font(.onePlus(26, .light)).foregroundColor(.white).monospacedDigit()
-                    let u = showAlt && alt != nil ? altUnitLong : d.unit
-                    if !u.isEmpty {
-                        Text(u).font(.onePlus(9, .light)).foregroundColor(.white.opacity(0.4))
-                    }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Theme.accentSolid)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Theme.accentSolid.opacity(0.18)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Restart")
+        } else {
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(d.primary)
+                    .font(.onePlus(26, .light)).foregroundColor(.white).monospacedDigit()
+                if !d.unit.isEmpty {
+                    Text(d.unit).font(.onePlus(9, .light)).foregroundColor(.white.opacity(0.4))
                 }
             }
-        }
-    }
-
-    private var altUnitLong: String {
-        guard let alt else { return d.unit }
-        return alt.unit == "y" ? "years" : "days"
-    }
-
-    private func compactPrimary() -> String {
-        let v = d.primary
-        switch d.unit {
-        case "days", "day":   return v + "d"
-        case "years":         return v + "y"
-        default:              return v
         }
     }
 

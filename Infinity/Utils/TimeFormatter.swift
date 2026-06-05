@@ -43,14 +43,6 @@ enum TimeCalculator {
 
     private static func countdown(_ item: TimerItem, _ now: Date) -> TimeDisplay {
         let diff = item.targetDate.timeIntervalSince(now)
-
-        // Recurring event landing today
-        if item.repeatOption != .never, Calendar.current.isDateInToday(item.targetDate) {
-            return TimeDisplay(primary: "Today", unit: "",
-                               subtitle: subtitle(item, "today"),
-                               progress: 1, isToday: true)
-        }
-
         let (value, unit) = format(remaining: diff, item: item)
         return TimeDisplay(primary: value, unit: unit,
                            subtitle: subtitle(item, "left"),
@@ -146,26 +138,5 @@ enum TimeCalculator {
         let f = DateFormatter()
         f.dateFormat = "d MMM yyyy"
         return f.string(from: date)
-    }
-
-    // MARK: Alternate display (days ↔ years toggle in the list)
-
-    static func altDisplay(for item: TimerItem, now: Date = Date()) -> (value: String, unit: String)? {
-        let d = display(for: item, now: now)
-        switch d.unit {
-        case "days", "day":
-            let diff = item.kind == .progress ? 0
-                     : abs((item.targetDate > now ? item.targetDate.timeIntervalSince(now)
-                                                   : now.timeIntervalSince(item.targetDate)))
-            let years = diff / yearSeconds
-            guard years >= 0.01 else { return nil }
-            return (String(format: years >= 10 ? "%.1f" : "%.2f", years), "y")
-        case "years":
-            let diff = item.targetDate > now ? item.targetDate.timeIntervalSince(now)
-                                             : now.timeIntervalSince(item.targetDate)
-            return ("\(Int(abs(diff) / 86_400))", "d")
-        default:
-            return nil
-        }
     }
 }

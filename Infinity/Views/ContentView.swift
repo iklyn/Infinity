@@ -21,31 +21,39 @@ enum NavDest: Equatable {
 struct ContentView: View {
     @EnvironmentObject var store: TimerStore
     @State private var nav: NavDest = .list
+    @State private var fromLeft = false        // direction the secondary screen comes from
 
-    private let rowHeight: CGFloat = 65
-    private let maxListHeight: CGFloat = 520
+    // One constant window height for every screen → screens never resize, so nothing jumps.
+    private let windowHeight: CGFloat = 360
+    private let spring = Animation.spring(response: 0.5, dampingFraction: 0.9)
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {              // top-pinned so the header never drifts
             if nav == .list {
                 listScreen
                     .zIndex(1)
-                    .transition(.move(edge: .leading))
+                    .transition(.move(edge: fromLeft ? .trailing : .leading))
             }
             if nav.isSecondary {
                 secondary
                     .zIndex(2)
-                    .transition(.move(edge: .trailing))
+                    .transition(.move(edge: fromLeft ? .leading : .trailing))
             }
         }
-        .frame(width: 360)
+        .frame(width: 360, height: windowHeight, alignment: .top)
         .background(Theme.bg)
-        .animation(.spring(response: 0.5, dampingFraction: 0.9), value: nav)
+        .animation(spring, value: nav)
         .clipped()
         .overlay(alignment: .top) {
             if store.isAlarming { alarmBanner }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: store.isAlarming)
+    }
+
+    /// Navigate, recording which side the new screen should slide in from.
+    private func go(_ dest: NavDest, fromLeft: Bool) {
+        self.fromLeft = fromLeft
+        nav = dest
     }
 
     // MARK: Ringing banner
@@ -99,6 +107,7 @@ struct ContentView: View {
                 list
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var header: some View {
@@ -107,9 +116,9 @@ struct ContentView: View {
                 .font(.custom("SnellRoundhand-Bold", size: 20))
                 .foregroundColor(.white)
             HStack {
-                iconButton("gearshape") { nav = .settings }
+                iconButton("gearshape") { go(.settings, fromLeft: true) }   // gear is left → slide from left
                 Spacer()
-                iconButton("plus") { nav = .add }
+                iconButton("plus") { go(.add, fromLeft: false) }            // plus is right → slide from right
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
@@ -125,20 +134,29 @@ struct ContentView: View {
         .buttonStyle(.plain)
     }
 
+    /// Active timers first, completed ones sink to the bottom (stable within each group).
+    private var ordered: [TimerItem] {
+        store.timers.enumerated()
+            .sorted { ($0.element.isCompleted ? 1 : 0, $0.offset)
+                    < ($1.element.isCompleted ? 1 : 0, $1.offset) }
+            .map(\.element)
+    }
+
     private var list: some View {
         ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 0) {
-                ForEach(store.timers) { item in
-                    TimerRowView(item: item, onEdit: { nav = .edit(item) })
+                ForEach(ordered) { item in
+                    TimerRowView(item: item, onEdit: { go(.edit(item), fromLeft: false) })
                         .environmentObject(store)
-                    if item.id != store.timers.last?.id {
+                        .opacity(item.isCompleted ? 0.65 : 1)
+                    if item.id != ordered.last?.id {
                         Divider().background(Color.white.opacity(0.06)).padding(.leading, 58)
                     }
                 }
-                .onMove { store.move(from: $0, to: $1) }
             }
+            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: store.timers)
         }
-        .frame(height: min(CGFloat(store.timers.count) * rowHeight, maxListHeight))
+        .frame(maxHeight: .infinity)
     }
 
     private var emptyState: some View {
@@ -146,7 +164,7 @@ struct ContentView: View {
             Text("∞").font(.system(size: 50, weight: .ultraLight))
                 .foregroundColor(.white.opacity(0.15))
             Text("No timers yet").font(.onePlus(13)).foregroundColor(.white.opacity(0.35))
-            Button { nav = .add } label: {
+            Button { go(.add, fromLeft: false) } label: {
                 Text("Create one")
                     .font(.onePlus(12, .medium)).foregroundColor(.white)
                     .padding(.horizontal, 18).padding(.vertical, 8)
