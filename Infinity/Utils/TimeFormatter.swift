@@ -76,8 +76,8 @@ enum TimeCalculator {
         let total = item.targetDate.timeIntervalSince(item.startDate)
         guard total > 0 else { return TimeDisplay(primary: "0", unit: "%") }
         let pct = max(0, min(1, now.timeIntervalSince(item.startDate) / total))
-        let dDone  = max(0, Int(now.timeIntervalSince(item.startDate) / 86_400))
         let dTotal = Int(total / 86_400)
+        let dDone  = min(dTotal, max(0, Int(now.timeIntervalSince(item.startDate) / 86_400)))
         return TimeDisplay(primary: String(format: "%.0f", pct * 100), unit: "%",
                            subtitle: "\(dDone) / \(dTotal) days",
                            progress: pct)
